@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StrimsPlanet - Sport na żywo za darmo</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #0a0a0a;
+      color: #fff;
+      overflow-x: hidden;
+    }
+    #particles {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: -1;
+    }
+    header {
+      background: linear-gradient(90deg, #1f1f1f, #121212);
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 2.5em;
+      color: #00ff88;
+    }
+    nav {
+      background-color: #111;
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      padding: 15px 0;
+    }
+    nav a {
+      color: #ccc;
+      text-decoration: none;
+      font-weight: bold;
+      transition: color 0.3s;
+      cursor: pointer;
+    }
+    nav a:hover, nav a.active {
+      color: #00ff88;
+    }
+    section {
+      padding: 40px 20px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .hero {
+      text-align: center;
+      background-size: cover;
+    }
+    .hero h2 {
+      font-size: 3em;
+      margin-bottom: 10px;
+      color: #00ff88;
+      text-shadow: 2px 2px 5px #000;
+    }
+    .hero p {
+      font-size: 1.2em;
+      color: #eee;
+      text-shadow: 1px 1px 3px #000;
+    }
+    .channels {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 20px;
+    }
+    .channel {
+      background-color: #1a1a1a;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      transition: transform 0.3s, background-color 0.3s;
+      cursor: pointer;
+    }
+    .channel:hover {
+      transform: scale(1.05);
+      background-color: #222;
+    }
+    .channel img {
+      width: 100%;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .channel h3 {
+      margin: 0;
+      color: #00ff88;
+    }
+    #player-container {
+      background-color: #000;
+      padding: 20px;
+      text-align: center;
+      border: 3px solid #00ff88;
+      border-radius: 10px;
+      max-width: 800px;
+      margin: 30px auto;
+      display: none;
+    }
+    video {
+      width: 100%;
+      border-radius: 10px;
+      background-color: black;
+    }
+    #contact p {
+      color: #ccc;
+    }
+    footer {
+      background-color: #111;
+      text-align: center;
+      padding: 20px;
+      font-size: 0.9em;
+      color: #888;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script>
+    window.onload = function() {
+      particlesJS("particles", {
+        particles: {
+          number: { value: 80, density: { enable: true, value_area: 800 } },
+          color: { value: "#00ff88" },
+          shape: { type: "circle" },
+          opacity: { value: 0.5, random: true },
+          size: { value: 3, random: true },
+          move: { enable: true, speed: 1, direction: "none", out_mode: "bounce" }
+        },
+        interactivity: {
+          detect_on: "canvas",
+          events: { onhover: { enable: true, mode: "grab" } },
+          modes: { grab: { distance: 150, line_linked: { opacity: 0.5 } } }
+        },
+        retina_detect: true
+      });
+
+      // Obsługa zakładek (bez poradnika)
+      const links = document.querySelectorAll('nav a:not([onclick])');
+      links.forEach(link => {
+        link.addEventListener('click', e => {
+          e.preventDefault();
+          // ukryj player przy zmianie zakładki
+          document.getElementById('player-container').style.display = 'none';
+
+          const targetId = link.getAttribute('href').substring(1);
+          showSection(targetId);
+          setActiveLink(link);
+        });
+      });
+
+      // Pokaż domyślnie sekcję główną i zaznacz pierwszy link
+      showSection('home');
+      setActiveLink(links[0]);
+    };
+
+    function showSection(id) {
+      const sections = document.querySelectorAll('section');
+      sections.forEach(sec => {
+        if(sec.id === id) {
+          sec.style.display = 'block';
+        } else if(sec.id !== 'player-container'){
+          sec.style.display = 'none';
+        }
+      });
+    }
+
+    function setActiveLink(activeLink) {
+      const links = document.querySelectorAll('nav a');
+      links.forEach(link => {
+        link.classList.toggle('active', link === activeLink);
+      });
+    }
+
+    function showContact() {
+      showSection('contact');
+      const contactLink = document.querySelector('nav a[onclick]');
+      setActiveLink(contactLink);
+      document.getElementById('player-container').style.display = 'none';
+    }
+
+    let hls;
+
+    function playChannel(streamUrl) {
+      const container = document.getElementById('player-container');
+      const video = document.getElementById('video-player');
+      container.style.display = 'block';
+
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+
+      if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari i inne przeglądarki obsługujące natywnie m3u8
+        video.src = streamUrl;
+        video.play();
+      } else if (Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play();
+        });
+      } else {
+        alert('Twoja przeglądarka nie obsługuje odtwarzania tego streamu.');
+      }
+
+      // scroll do playera
+      container.scrollIntoView({behavior:'smooth'});
+    }
+  </script>
+</head>
+<body>
+  <div id="particles"></div>
+
+  <header>
+    <h1>StrimsPlanet</h1>
+    <p>Sport na żywo za darmo - gdziekolwiek jesteś</p>
+<p style="color: red; font-size: 24px; font-weight: bold;"> STRONA NIE NALEŻY DO STRUMYKA.TV! </p>
+  </header>
+
+  <nav>
+    <a href="#home">Strona Główna</a>
+    <a href="#channels-section">Kanały</a>
+    <a href="#live">Live</a>
+    <a onclick="showContact()">Kontakt</a>
+  </nav>
+
+  <section id="home" class="hero" style="display:block;">
+    <h2>Oglądaj sport kiedy chcesz</h2>
+    <p>Canal+ Sport, Eleven, Polsat Sport i więcej - za darmo</p>
+  </section>
+
+  <section id="channels-section" style="display:none;">
+    <div class="channels">
+      <div class="channel" onclick="playChannel('http://front-main.eagle-4k.me:80/live/0xrmzmfi1l/vlmkdzw9y7/80473.m3u8')">
+        <img src="https://upload.wikimedia.org/wikipedia/en/4/42/Canal%2B_Sport_logo.png" alt="Canal+ Sport" />
+        <h3>Canal+ Sport</h3>
+      </div>
+      <div class="channel" onclick="playChannel('https://example.com/eleven.m3u8')">
+        <img src="https://upload.wikimedia.org/wikipedia/en/thumb/f/fc/Eleven_Sports_logo.svg/2560px-Eleven_Sports_logo.svg.png" alt="Eleven Sports" />
+        <h3>Eleven Sports</h3>
+      </div>
+      <div class="channel" onclick="playChannel('https://example.com/polsat.m3u8')">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Polsat_Sport_2021_gradient.svg/512px-Polsat_Sport_2021_gradient.svg.png" alt="Polsat Sport" />
+        <h3>Polsat Sport</h3>
+      </div>
+      <div class="channel" onclick="playChannel('https://example.com/tvpsport.m3u8')">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/TVP_Sport_2021.svg/2560px-TVP_Sport_2021.svg.png" alt="TVP Sport" />
+        <h3>TVP Sport</h3>
+      </div>
+      <div class="channel" onclick="playChannel('http://zerofreeze.top:80/live/ElizbathBonnet99275017/BrfKC6yGzjBv/56103.m3u8')">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/8/89/Live-video-icon.png" alt="Nowy Live Stream" />
+        <h3>Nowy Live Stream</h3>
+      </div>
+    </div>
+  </section>
+
+  <section id="live" style="display:none;">
+    <h2>Live streaming</h2>
+    <p>Aktualnie brak transmisji na żywo, sprawdź później.</p>
+  </section>
+
+  <section id="player-container">
+    <video id="video-player" controls></video>
+  </section>
+
+  <section id="contact" style="display:none;">
+    <h2>Kontakt</h2>
+    <p>Masz pytania? Napisz na <a href="mailto:support@strimsplanet.com" style="color:#00ff88;">support@strimsplanet.com</a></p>
+  </section>
+
+  <footer>
+    © 2025 StrimsPlanet. Wszystkie prawa zastrzeżone. Stworzono przez Kacpra, tego prykurwionego ziomka.
+  </footer>
+</body>
+</html>
